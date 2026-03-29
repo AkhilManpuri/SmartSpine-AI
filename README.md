@@ -1,4 +1,4 @@
-# SmartSpine AI
+# SmartSpine AI 🦴
 
 ## Description
 AI-powered posture monitoring system using computer vision.
