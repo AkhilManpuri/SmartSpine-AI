@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartSpine AI - Posture Monitoring</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  
+  <style>
+    :root {
+      --primary: #0077b6;
+      --secondary: #00b4d8;
+      --accent: #90e0ef;
+      --bg-color: #f8fbff;
+      --text-dark: #1b2a47;
+      --text-light: #5c6b89;
+      --white: #ffffff;
+      --shadow: 0 10px 30px rgba(0, 119, 182, 0.08);
+      --shadow-hover: 0 15px 40px rgba(0, 119, 182, 0.15);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-dark);
+      line-height: 1.6;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      font-weight: 600;
+      border-radius: 50px;
+      text-align: center;
+      transition: var(--transition);
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--white);
+      box-shadow: 0 4px 15px rgba(0, 119, 182, 0.3);
+    }
+    
+    .btn-primary:hover {
+      background: #005f92;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 119, 182, 0.4);
+    }
+
+    .btn-white {
+      background: var(--white);
+      color: var(--primary);
+      box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-white:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(255, 255, 255, 0.4);
+    }
+
+    /* Section Spacing */
+    section {
+      padding: 5rem 0;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: var(--white);
+      padding: 7rem 0 6rem 0;
+      text-align: center;
+      border-bottom-left-radius: 40px;
+      border-bottom-right-radius: 40px;
+      box-shadow: 0 10px 30px rgba(0, 180, 216, 0.2);
+    }
+
+    .hero-logo {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      letter-spacing: -1px;
+    }
+
+    .hero h2 {
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+      color: var(--accent);
+    }
+
+    .hero p {
+      font-size: 1.2rem;
+      max-width: 700px;
+      margin: 0 auto 2.5rem auto;
+      opacity: 0.9;
+    }
+
+    /* Section Titles */
+    .section-title {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 3.5rem;
+      color: var(--text-dark);
+    }
+
+    /* Features Section */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+
+    .feature-card {
+      background: var(--white);
+      padding: 2.5rem;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+      border: 1px solid rgba(0, 119, 182, 0.05);
+    }
+
+    .feature-card:hover {
+      transform: translateY(-10px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .feature-icon {
+      font-size: 3rem;
+      margin-bottom: 1.5rem;
+      background: var(--bg-color);
+      width: 80px;
+      height: 80px;
+      line-height: 80px;
+      border-radius: 50%;
+      margin: 0 auto 1.5rem auto;
+      color: var(--primary);
+    }
+
+    .feature-card h3 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .feature-card p {
+      color: var(--text-light);
+    }
+
+    /* How It Works Section */
+    .how-it-works-bg {
+      background-color: var(--white);
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      position: relative;
+    }
+
+    .step-card {
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .step-number {
+      width: 60px;
+      height: 60px;
+      background: var(--accent);
+      color: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 0 auto 1.5rem auto;
+      box-shadow: 0 5px 15px rgba(144, 224, 239, 0.5);
+    }
+
+    .step-card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+    }
+
+    .step-card p {
+      color: var(--text-light);
+    }
+
+    /* CTA Section */
+    .cta-section {
+      text-align: center;
+      padding: 6rem 0;
+      background: var(--bg-color);
+    }
+
+    .cta-section h2 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 2rem;
+      color: var(--primary);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--white);
+      padding: 2rem 0;
+      text-align: center;
+      color: var(--text-light);
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.5rem; }
+      .hero h2 { font-size: 1.2rem; }
+      .section-title { font-size: 2rem; }
+      .cta-section h2 { font-size: 2.2rem; }
+      section { padding: 4rem 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-logo">🦴</div>
+      <h1>SmartSpine AI</h1>
+      <h2>AI-powered posture monitoring for a healthier life</h2>
+      <p>Using advanced computer vision to protect your spine, track bone health metrics, and recommend personalized corrective exercises—all in real-time through your webcam.</p>
+      <a href="/login" class="btn btn-white">Get Started</a>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="container">
+    <h2 class="section-title">Core Features</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📷</div>
+        <h3>Real-time Posture Detection</h3>
+        <p>Continuous monitoring of body landmarks to detect slouching and shoulder imbalances instantly without any wearables.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Health Analytics Dashboard</h3>
+        <p>Visual reports of your posture trends over time, tracking your good vs. bad posture distributions and predictive scores.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Smart Alerts System</h3>
+        <p>Receive corrective nudges and alerts the moment poor posture is detected so you can adjust and build better habits.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="how-it-works-bg">
+    <div class="container">
+      <h2 class="section-title">How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3>Webcam Captures</h3>
+          <p>Activate your webcam to securely capture real-time footage of your seated posture within your browser.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3>AI Analyzes</h3>
+          <p>Our intelligent system maps 33 body landmarks to evaluate your spinal alignment locally.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3>Real-time Feedback</h3>
+          <p>Get instant visual and auditory alerts when your posture deviates from a healthy baseline.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">4</div>
+          <h3>Dashboard Storage</h3>
+          <p>Your session data is safely stored to build a comprehensive view of your bone health over time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Start improving your posture today</h2>
+      <p style="color: var(--text-light); font-size: 1.2rem; margin-bottom: 2.5rem; max-width: 600px; margin-left: auto; margin-right: auto;">Join SmartSpine AI and take control of your long-term bone health with a few simple clicks.</p>
+      <a href="/login" class="btn btn-primary">Start Monitoring</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 SmartSpine AI Healthcare. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

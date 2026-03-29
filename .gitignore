@@ -1,0 +1,7 @@
+serviceAccountKey.json
+stats.json
+__pycache__/
+*.pyc
+.env
+venv/
+.vscode/
