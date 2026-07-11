@@ -47,3 +47,4 @@ Poor posture is a leading cause of back pain, musculoskeletal disorders, and lon
 - Mobile application for tracking posture on the go.
 - Stretches and exercises integration with video tutorials.
 - Multi-user authentication via Firebase Auth.
+Akhil
