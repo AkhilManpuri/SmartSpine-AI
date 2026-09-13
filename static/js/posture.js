@@ -6,6 +6,8 @@
 let _pollingTimer = null;
 let _cameraRunning = false;
 let sessionActive = false;
+let captureTimer = null;
+let localStream = null;
 
 // UI Elements (from index.html #view-monitor)
 const liveVideo = document.getElementById('liveVideo');
@@ -19,6 +21,8 @@ const dsStatus = document.getElementById('curPostureStatus');
 const dsGood = document.getElementById('curGoodTime');
 const dsBad = document.getElementById('curBadTime');
 const dsScore = document.getElementById('curScore');
+
+const frameCanvas = document.createElement('canvas');
 
 // Reset UI logic
 function resetUI() {
@@ -38,82 +42,164 @@ function resetUI() {
 async function startCamera() {
   btnStart.disabled = true;
   btnStart.textContent = 'Starting...';
-  
+
   sessionActive = true;
   resetUI();
-  
+
   try {
     const res = await fetch('/api/camera/start', { method: 'POST' });
-    if (res.ok) {
-      // Small delay to let Python OpenCV init
-      setTimeout(() => {
-        liveVideo.src = '/video_feed?' + new Date().getTime();
-        liveVideo.style.display = 'block';
-        idlePrompt.style.display = 'none';
-        
-        btnStart.style.display = 'none';
-        btnStart.disabled = false;
-        btnStart.textContent = '▶ Start Detection';
-        
-        btnStop.style.display = 'inline-block';
-        badgeStatus.textContent = 'Live';
-        badgeStatus.className = 'status-badge live';
-        _cameraRunning = true;
-        
-        if (liveStatusBadge) {
-          liveStatusBadge.style.display = 'block';
-          liveStatusBadge.textContent = 'STARTING...';
-          liveStatusBadge.className = 'live-status-badge';
-        }
-        
-        startPolling();
-      }, 2000);
+    if (!res.ok) {
+      throw new Error('Camera start endpoint failed');
     }
-  } catch (e) {
-    console.error('[SpineAI] Failed to start camera', e);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Browser webcam API unavailable');
+    }
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: { ideal: 'environment' }
+        },
+        audio: false
+      });
+    } catch (e) {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+    }
+
+    liveVideo.srcObject = localStream;
+    liveVideo.style.display = 'block';
+    idlePrompt.style.display = 'none';
+
+    await liveVideo.play();
+
+    btnStart.style.display = 'none';
     btnStart.disabled = false;
     btnStart.textContent = '▶ Start Detection';
+
+    btnStop.style.display = 'inline-block';
+    badgeStatus.textContent = 'Live';
+    badgeStatus.className = 'status-badge live';
+    _cameraRunning = true;
+
+    if (liveStatusBadge) {
+      liveStatusBadge.style.display = 'block';
+      liveStatusBadge.textContent = 'STARTING...';
+      liveStatusBadge.className = 'live-status-badge';
+    }
+
+    startPolling();
+    startFrameCapture();
+  } catch (e) {
+    console.error('[SpineAI] Failed to start camera', e);
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+    btnStart.disabled = false;
+    btnStart.textContent = '▶ Start Detection';
+    if (liveStatusBadge) {
+      liveStatusBadge.style.display = 'block';
+      liveStatusBadge.textContent = 'CAMERA DENIED';
+      liveStatusBadge.className = 'live-status-badge bad';
+    }
   }
+}
+
+function startFrameCapture() {
+  if (captureTimer) clearInterval(captureTimer);
+  captureTimer = setInterval(() => {
+    if (!localStream || !liveVideo || liveVideo.readyState < 2) return;
+    const width = 640;
+    const height = 480;
+    frameCanvas.width = width;
+    frameCanvas.height = height;
+    const ctx = frameCanvas.getContext('2d');
+    ctx.drawImage(liveVideo, 0, 0, width, height);
+    const dataUrl = frameCanvas.toDataURL('image/jpeg', 0.75);
+
+    fetch('/api/camera/frame', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: dataUrl })
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data || !data.stats) return;
+        const s = data.stats;
+        dsStatus.textContent = s.posture || 'Detecting...';
+        dsStatus.className = 'value text-green font-bold';
+        if (s.posture === 'Bad Posture') {
+          dsStatus.className = 'value text-red font-bold';
+        }
+        if (s.landmarks_detected !== undefined) {
+          dsGood.textContent = s.good_duration < 60
+            ? `${Math.round(s.good_duration)}s`
+            : `${(s.good_duration / 60).toFixed(1)}m`;
+          dsBad.textContent = s.bad_duration < 60
+            ? `${Math.round(s.bad_duration)}s`
+            : `${(s.bad_duration / 60).toFixed(1)}m`;
+          dsScore.textContent = `${Math.round(s.posture_score)}%`;
+        }
+      })
+      .catch(err => console.warn('[SpineAI] frame upload failed', err));
+  }, 1000 / 5);
 }
 
 // Stop Camera Request
 async function stopCamera() {
   btnStop.disabled = true;
   btnStop.textContent = 'Stopping...';
-  
+
   sessionActive = false;
   stopPolling();
-  
+  if (captureTimer) clearInterval(captureTimer);
+  captureTimer = null;
+
   try {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+    if (liveVideo) {
+      liveVideo.srcObject = null;
+      liveVideo.style.display = 'none';
+    }
+
     const res = await fetch('/api/camera/stop', { method: 'POST' });
     const data = await res.json();
-    
+
     // Save to backend explicitely (using the unified /api/reset endpoint which saves)
     await fetch('/api/reset', { method: 'POST' });
-    
-    // Update UI
-    liveVideo.src = '';
-    liveVideo.style.display = 'none';
+
     idlePrompt.style.display = 'flex';
-    
+
     btnStop.style.display = 'none';
     btnStop.disabled = false;
     btnStop.textContent = '⏹ Stop & Save';
-    
+
     btnStart.style.display = 'inline-block';
     badgeStatus.textContent = 'Stopped';
     badgeStatus.className = 'status-badge offline';
     _cameraRunning = false;
-    
+
     if (liveStatusBadge) liveStatusBadge.style.display = 'none';
-    
+
     resetUI();
-    
+
     // Automatically go to analytics
     setTimeout(() => {
       window.location.hash = 'analytics';
     }, 500);
-    
+
   } catch (e) {
     console.error('[SpineAI] Failed to stop camera', e);
     btnStop.disabled = false;

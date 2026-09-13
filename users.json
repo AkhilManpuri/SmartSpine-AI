@@ -1,0 +1,22 @@
+{
+  "users": [
+    {
+      "name": "Test User",
+      "email": "smartspine_a04532f3@example.com",
+      "password_hash": "scrypt:32768:8:1$S4caASYdJbmOrTer$1efca73d0388889216958e4847a42f81a986cb81c2b1136d86f8fd42251aeaa9273ae64db37c98cc9b696a2ad2fa270b48d85c218d83c8259f2849edcc9e81dc",
+      "created_at": "2026-09-13T17:45:40.864279"
+    },
+    {
+      "name": "Test User",
+      "email": "smartspine_bda0ffdc@example.com",
+      "password_hash": "scrypt:32768:8:1$0ZE3qukl2kI4C3tj$ff2887b12bc235c9963310d2be78859dac5da858e9195a92b889051afad3dbdcb7d1cdc7ebf2442edf020adb1f046b8cd2086fdc3e3432b4ccf9ec4f40adf5de",
+      "created_at": "2026-09-13T17:54:09.734806"
+    },
+    {
+      "name": "Manpuri Akhil",
+      "email": "akhilmanpuri43@gmail.com",
+      "password_hash": "scrypt:32768:8:1$hqtwveORZQIHUwl9$c33c05d2711039fc372c09ef7678877f4687836ccb131a1103d746028b6e05e44c525285af4062321078844453c202f51264c152c821115fc1dadff02ba5bb04",
+      "created_at": "2026-09-13T17:56:48.288715"
+    }
+  ]
+}

@@ -7,8 +7,10 @@ bone health index, and Firebase Firestore persistence.
 import time
 import json
 import os
+import re
 from collections import deque
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 # ---------------------------------------------------------------------------
@@ -180,10 +182,136 @@ class ExerciseRecommender:
 
 
 # ---------------------------------------------------------------------------
+# Authentication helpers (minimal, production-safe)
+# ---------------------------------------------------------------------------
+
+USER_STORE_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _load_user_store() -> dict:
+    if not os.path.exists(USER_STORE_FILE):
+        return {"users": []}
+    try:
+        with open(USER_STORE_FILE, "r") as f:
+            data = json.load(f)
+        if isinstance(data.get("users"), list):
+            return data
+    except Exception:
+        pass
+    return {"users": []}
+
+
+def _save_user_store(store: dict) -> None:
+    with open(USER_STORE_FILE, "w") as f:
+        json.dump(store, f, indent=2)
+
+
+def validate_registration(name: str, email: str, password: str, confirm_password: str):
+    errors = []
+    if not name or not name.strip():
+        errors.append("Your name is required.")
+    if not email or not EMAIL_RE.match(email.strip()):
+        errors.append("Enter a valid email address.")
+    if not password or len(password) < 8:
+        errors.append("Password must be at least 8 characters long.")
+    if password and not any(ch.isupper() for ch in password):
+        errors.append("Password must include at least one uppercase letter.")
+    if password and not any(ch.isdigit() for ch in password):
+        errors.append("Password must include at least one number.")
+    if password and confirm_password and password != confirm_password:
+        errors.append("Passwords do not match.")
+    return errors
+
+
+def duplicate_user_exists(email: str) -> bool:
+    try:
+        from firebase_config import db, is_available
+        if is_available() and db is not None:
+            docs = list(db.collection("users").where("email", "==", email.lower()).limit(1).stream())
+            return len(docs) > 0
+    except Exception:
+        pass
+
+    store = _load_user_store()
+    for user in store.get("users", []):
+        if user.get("email", "").lower() == email.lower():
+            return True
+    return False
+
+
+def register_user(name: str, email: str, password: str):
+    errors = validate_registration(name, email, password, password)
+    if errors:
+        return None, errors
+
+    email = email.strip().lower()
+    if duplicate_user_exists(email):
+        return None, ["An account with that email already exists."]
+
+    password_hash = generate_password_hash(password)
+    user = {
+        "name": name.strip(),
+        "email": email,
+        "password_hash": password_hash,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        from firebase_config import db, is_available
+        if is_available() and db is not None:
+            db.collection("users").add(user)
+            return {"name": name.strip(), "email": email}, []
+    except Exception as exc:
+        print(f"[Auth] Firestore user write failed: {exc}")
+
+    store = _load_user_store()
+    store.setdefault("users", []).append(user)
+    _save_user_store(store)
+    return {"name": name.strip(), "email": email}, []
+
+
+def authenticate_user(email: str, password: str):
+    email = email.strip().lower()
+
+    try:
+        from firebase_config import db, is_available
+        if is_available() and db is not None:
+            docs = list(db.collection("users").where("email", "==", email).limit(1).stream())
+            if docs:
+                doc = docs[0].to_dict()
+                if check_password_hash(doc.get("password_hash", ""), password):
+                    return {
+                        "name": doc.get("name", "SmartSpine User"),
+                        "email": doc.get("email", email),
+                        "uid": docs[0].id,
+                    }
+                return None
+    except Exception as exc:
+        print(f"[Auth] Firestore credential verification failed: {exc}")
+
+    store = _load_user_store()
+    for user in store.get("users", []):
+        if user.get("email", "").lower() == email:
+            if check_password_hash(user.get("password_hash", ""), password):
+                return {
+                    "name": user.get("name", "SmartSpine User"),
+                    "email": user.get("email", email),
+                    "uid": user.get("email", email),
+                }
+            return None
+    return None
+
+
+def user_from_session(session_obj: dict):
+    return session_obj.get("user") if isinstance(session_obj, dict) else None
+
+
+# ---------------------------------------------------------------------------
 # Firebase Persistence
 # ---------------------------------------------------------------------------
 
-def save_to_firestore(stats_dict: dict) -> bool:
+def save_to_firestore(stats_dict: dict, user: dict | None = None) -> bool:
     """
     Save a session summary to the Firestore `posture_sessions` collection.
     Schema (matches frontend field expectations):
@@ -205,6 +333,7 @@ def save_to_firestore(stats_dict: dict) -> bool:
         bad_s  = stats_dict.get("bad_duration",  0)
         dur_s  = stats_dict.get("session_duration", 0)
 
+        user_email = (user or {}).get("email")
         doc = {
             # ISO timestamp — top-level field requested by user
             "timestamp":             now.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -221,6 +350,7 @@ def save_to_firestore(stats_dict: dict) -> bool:
             "bad_duration_min":      round(bad_s  / 60, 2),
             "session_duration_min":  round(dur_s  / 60, 2),
             "bad_streak_count":      stats_dict.get("bad_streak_count", 0),
+            "user_email":            user_email,
             "created_at":            _fs.SERVER_TIMESTAMP,
         }
 
@@ -239,7 +369,7 @@ def save_to_firestore(stats_dict: dict) -> bool:
         return False
 
 
-def fetch_sessions_from_firestore(limit: int = 30) -> list:
+def fetch_sessions_from_firestore(limit: int = 30, user_email: str | None = None) -> list:
     """
     Fetch the most recent sessions from Firestore.
     Returns an empty list if Firebase is unavailable.
@@ -250,21 +380,17 @@ def fetch_sessions_from_firestore(limit: int = 30) -> list:
             return []
 
         from google.cloud.firestore_v1 import Query as _FsQuery
-        docs = (
-            db.collection("posture_sessions")
-            .order_by("created_at", direction=_FsQuery.DESCENDING)
-            .limit(limit)
-            .stream()
-        )
+        docs = db.collection("posture_sessions").stream()
         result = []
         for doc in docs:
             d = doc.to_dict()
-            d["doc_id"] = doc.id   # include document ID for reference
-            # Convert Firestore Timestamp to readable string
+            if user_email and d.get("user_email") != user_email:
+                continue
+            d["doc_id"] = doc.id
             ts = d.get("created_at")
             if hasattr(ts, "strftime"):
                 d["created_at"] = ts.strftime("%Y-%m-%d %H:%M")
-            elif hasattr(ts, "seconds"):               # DatetimeWithNanoseconds
+            elif hasattr(ts, "seconds"):
                 from datetime import timezone
                 dt = datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
                 d["created_at"] = dt.strftime("%Y-%m-%d %H:%M")
@@ -272,8 +398,9 @@ def fetch_sessions_from_firestore(limit: int = 30) -> list:
                 d["created_at"] = str(ts or "")
             result.append(d)
 
+        result = sorted(result, key=lambda x: x.get("created_at", ""), reverse=False)
         print(f"[Firebase] ✅ Fetched {len(result)} session(s) from Firestore.")
-        return list(reversed(result))   # oldest first for charts
+        return result[-limit:] if limit else result
 
     except Exception as e:
         print(f"[Firebase] ⚠️  Could not fetch from Firestore: {e}")
@@ -309,11 +436,16 @@ def _load_store() -> dict:
     return {"sessions": []}
 
 
-def save_session_local(stats_dict: dict):
+def save_session_local(stats_dict: dict, user: dict | None = None):
     """
     Append a session summary to stats.json (same schema as Firestore).
     Sessions are NEVER deleted or rotated — all history is kept.
+    This fallback is development-only and is disabled in production.
     """
+    if os.environ.get("SMARTSPINE_ENV") == "production":
+        print("[Local] ⚠️  stats.json fallback disabled in production mode.")
+        return
+
     store  = _load_store()
     now    = datetime.now()
     good_s = stats_dict.get("good_duration", 0)
@@ -332,6 +464,7 @@ def save_session_local(stats_dict: dict):
         "bad_duration_min":      round(bad_s  / 60, 2),
         "session_duration_min":  round(dur_s  / 60, 2),
         "bad_streak_count":      stats_dict.get("bad_streak_count", 0),
+        "user_email":            (user or {}).get("email"),
     }
     store["sessions"].append(summary)
     with open(STATS_FILE, "w") as f:
@@ -347,10 +480,18 @@ def save_session_local(stats_dict: dict):
     )
 
 
-def fetch_sessions_local(limit: int = 30) -> list:
-    """Return the most recent `limit` sessions from stats.json."""
+def fetch_sessions_local(limit: int = 30, user_email: str | None = None) -> list:
+    """Return the most recent `limit` sessions from stats.json.
+
+    Local fallback is intentionally disabled in production mode.
+    """
+    if os.environ.get("SMARTSPINE_ENV") == "production":
+        return []
+
     store    = _load_store()
     sessions = store.get("sessions", [])
+    if user_email:
+        sessions = [s for s in sessions if s.get("user_email") == user_email]
     result   = sessions[-limit:]     # newest `limit` entries
     print(f"[Local] ℹ️  Loaded {len(result)} session(s) from stats.json "
           f"(total stored: {len(sessions)})")

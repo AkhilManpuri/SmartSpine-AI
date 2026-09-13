@@ -1,11 +1,12 @@
 """
 firebase_config.py
 Initialises Firebase Admin SDK and exposes the Firestore client `db`.
-Falls back gracefully if serviceAccountKey.json is missing OR if the
-Firestore database has not been created yet (404 on first probe).
+Supports local dev credentials from serviceAccountKey.json and
+production-safe credentials via FIREBASE_CREDENTIALS_JSON.
 """
 
 import os
+import json
 import logging
 
 db = None          # Firestore client (None if Firebase is unavailable)
@@ -18,18 +19,21 @@ try:
     import firebase_admin
     from firebase_admin import credentials, firestore
 
-    if os.path.exists(_KEY_PATH):
+    cred = None
+    cred_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+    if cred_json:
+        try:
+            cred = credentials.Certificate(json.loads(cred_json))
+        except Exception as parse_err:
+            logging.warning(f"[Firebase] ⚠️  FIREBASE_CREDENTIALS_JSON could not be parsed: {parse_err}")
+    elif os.path.exists(_KEY_PATH):
         cred = credentials.Certificate(_KEY_PATH)
+
+    if cred:
         firebase_admin.initialize_app(cred)
         _client = firestore.client()
 
-        # ── Probe: verify the database actually exists ────────────────────
-        # firestore.client() succeeds even if the database hasn't been
-        # created in the console. A lightweight collection list probe
-        # catches the 404 early so we can fall back to local storage.
         try:
-            # list_collections() is a generator; calling next() or list()
-            # issues one RPC which will raise if DB doesn't exist.
             list(_client.collections())
             db = _client
             _firebase_ok = True
@@ -43,10 +47,9 @@ try:
             )
     else:
         logging.warning(
-            "[Firebase] ⚠️  serviceAccountKey.json not found at:\n"
-            f"  {_KEY_PATH}\n"
-            "  Sessions will NOT be saved to Firestore.\n"
-            "  Follow the README to set up Firebase."
+            "[Firebase] ⚠️  Firebase credentials were not found.\n"
+            "  Set FIREBASE_CREDENTIALS_JSON in the environment or add\n"
+            "  serviceAccountKey.json only for local development."
         )
 
 except ImportError:

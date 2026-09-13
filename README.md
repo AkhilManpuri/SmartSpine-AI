@@ -18,24 +18,79 @@ Poor posture is a leading cause of back pain, musculoskeletal disorders, and lon
 - **Database**: Firebase Firestore (with local JSON fallback support)
 - **Frontend**: HTML, CSS, JavaScript, Chart.js
 
-## How to Run
+## Local setup
 
-1. **Install dependencies**
+1. **Create and activate a virtual environment**
+   ```bash
+   python -m venv .venv
+   .\.venv\Scripts\activate
+   ```
+
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Add serviceAccountKey.json**
-   Place your Firebase `serviceAccountKey.json` inside the root directory.
-   *(Note: The app will fallback to local storage if Firebase is not configured).*
+3. **Set required environment variables locally**
+   ```bash
+   set SMARTSPINE_ENV=development
+   set SMARTSPINE_SECRET_KEY=replace-with-a-local-secret
+   set FIREBASE_CREDENTIALS_JSON={"type":"service_account",...}
+   ```
 
-3. **Run the application**
+   For local development, `serviceAccountKey.json` may still be used as a fallback credential file.
+
+4. **Run the application locally**
    ```bash
    python app.py
    ```
 
-4. **Open the browser**
-   Navigate to [http://127.0.0.1:5000](http://127.0.0.1:5000)
+5. **Open the browser**
+   Navigate to http://127.0.0.1:5000
+
+## Browser webcam requirements
+
+The application is designed for browser-originated webcam capture with `getUserMedia()` and frame upload to the Flask backend for local MediaPipe/OpenCV posture inference. The server must not depend on a directly attached physical webcam. Browsers must allow camera permission. A Linux EC2 instance must use the browser-based webcam flow rather than a server-side `cv2.VideoCapture(0)` fallback.
+
+## Required environment variables
+
+- `SMARTSPINE_ENV` — set to `development` locally or `production` on AWS.
+- `SMARTSPINE_SECRET_KEY` — Flask session secret, required in production.
+- `FIREBASE_CREDENTIALS_JSON` — JSON service-account credential string for secure Firebase credentials in production.
+
+## AWS EC2 deployment overview
+
+This repository is suitable for an AWS EC2 Linux deployment using Gunicorn behind a reverse proxy such as Nginx or an Application Load Balancer. The app must be served by a production WSGI server instead of `app.run()`.
+
+```
+python app.py
+```
+
+Use a Gunicorn launch command such as:
+
+```bash
+gunicorn --bind 0.0.0.0:5000 app:app
+```
+
+## Required Linux packages on EC2
+
+Install the OS packages that support OpenCV and MediaPipe wheels before deployment:
+
+```bash
+sudo yum update -y
+sudo yum install -y python3-devel gcc gcc-c++ libgl1 libglib2.0-0
+```
+
+On Ubuntu/Debian-based Linux, the equivalent is:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3-dev build-essential libgl1 libglib2.0-0
+```
+
+## Firebase / Firestore
+
+Firestore is the intended production persistence mechanism. The app supports a Firebase Admin credential object from environment variables and falls back locally to `stats.json` only when `SMARTSPINE_ENV` is not production. Credentials must never be committed to source control.
 
 ## Screenshots
 *(Add your screenshots here)*
