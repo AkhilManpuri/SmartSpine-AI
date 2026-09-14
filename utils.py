@@ -369,7 +369,7 @@ def save_to_firestore(stats_dict: dict, user=None) -> bool:
         return False
 
 
-def fetch_sessions_from_firestore(limit: int = 30, user_email: str | None = None) -> list:
+def fetch_sessions_from_firestore(limit: int = 30, user_email: str = None) -> list:
     """
     Fetch the most recent sessions from Firestore.
     Returns an empty list if Firebase is unavailable.
