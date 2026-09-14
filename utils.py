@@ -10,6 +10,7 @@ import os
 import re
 from collections import deque
 from datetime import datetime
+from typing import Optional
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -436,7 +437,7 @@ def _load_store() -> dict:
     return {"sessions": []}
 
 
-def save_session_local(stats_dict: dict, user: dict | None = None):
+def save_session_local(stats_dict: dict, user: Optional[dict] = None):
     """
     Append a session summary to stats.json (same schema as Firestore).
     Sessions are NEVER deleted or rotated — all history is kept.
@@ -480,7 +481,7 @@ def save_session_local(stats_dict: dict, user: dict | None = None):
     )
 
 
-def fetch_sessions_local(limit: int = 30, user_email: str | None = None) -> list:
+def fetch_sessions_local(limit: int = 30, user_email: Optional[str] = None) -> list:
     """Return the most recent `limit` sessions from stats.json.
 
     Local fallback is intentionally disabled in production mode.
