@@ -311,7 +311,7 @@ def user_from_session(session_obj: dict):
 # Firebase Persistence
 # ---------------------------------------------------------------------------
 
-def save_to_firestore(stats_dict: dict, user: dict | None = None) -> bool:
+def save_to_firestore(stats_dict: dict, user=None) -> bool:
     """
     Save a session summary to the Firestore `posture_sessions` collection.
     Schema (matches frontend field expectations):
